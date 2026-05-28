@@ -47,7 +47,8 @@ def get_target_date(chat_id: int):
 def set_target_date(chat_id: int, date_str: str):
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO settings (chat_id, target_date) VALUES (?, ?)", (chat_id, date_str))    conn.commit()
+    cursor.execute("INSERT OR REPLACE INTO settings (chat_id, target_date) VALUES (?, ?)", (chat_id, date_str))
+    conn.commit()
     conn.close()
 
 def remove_target_date(chat_id: int):
