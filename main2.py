@@ -97,7 +97,8 @@ async def start_scheduler(bot: Bot):
             next_run = now.replace(hour=REPORT_HOUR, minute=0, second=0, microsecond=0)
             if now >= next_run:
                 next_run += timedelta(days=1)
-                        sleep_sec = (next_run - now).total_seconds()
+            
+            sleep_sec = (next_run - now).total_seconds()
             logging.info(f"Следующая отправка через {sleep_sec:.0f} сек")
             await asyncio.sleep(sleep_sec)
             await daily_broadcast(bot)
@@ -105,7 +106,7 @@ async def start_scheduler(bot: Bot):
             break
         except Exception as e:
             logging.error(f"Ошибка планировщика: {e}")
-            await asyncio.sleep(60)  # Ждём минуту перед повтором
+            await asyncio.sleep(60)
 
 # 🔹 Health check для Render (чтобы не усыплял)
 async def handle_health(request):
