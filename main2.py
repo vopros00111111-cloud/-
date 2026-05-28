@@ -27,9 +27,6 @@ logging.basicConfig(
 # 🔹 БД
 # 🔹 Пул подключений к БД
 db_pool = None
-async def main():
-    await init_db()  # ← ДОБАВЬ await
-    bot = Bot(token=BOT_TOKEN)
     # ... остальной код без изменений ...
 async def init_db():
     global db_pool
@@ -79,7 +76,7 @@ def calculate_status(date_dm: str) -> str:
 
 # 🔹 Рассылка
 async def daily_broadcast(bot: Bot):
-    target_date = get_target_date(TARGET_CHAT_ID)
+    target_date = await get_target_date(TARGET_CHAT_ID)  # ← await добавлен
     if not target_date:
         return
     
@@ -136,8 +133,8 @@ async def cmd_start(message: Message):
     )
 
 @dp.message(Command("set_date"))
-async def cmd_set_date(message: Message):  # ← ОБЯЗАТЕЛЬНО async def
-    args = message.text.split()  # ← Теперь message.text это строка
+async def cmd_set_date(message: Message):
+    args = message.text.split()
     if len(args) != 2:
         return await message.answer("❌ Формат: `/set_date DD-MM`")
     
@@ -148,28 +145,29 @@ async def cmd_set_date(message: Message):  # ← ОБЯЗАТЕЛЬНО async de
             raise ValueError
     except ValueError:
         return await message.answer(" Неверный формат. Пример: `15-03`")
-        set_target_date(TARGET_CHAT_ID, date_str)
+    
+    # ← set_target_date ВЫНЕСЕН из except и добавлен await
+    await set_target_date(TARGET_CHAT_ID, date_str)
+    
     await message.answer(f"✅ Дата: **{date_str}**")
     await daily_broadcast(message.bot)
 
 @dp.message(Command("status"))
 async def cmd_status(message: Message):
-    d = get_target_date(TARGET_CHAT_ID)
+    d = await get_target_date(TARGET_CHAT_ID)  # ← await добавлен
     if not d:
         return await message.answer("📭 Дата не установлена")
     await message.answer(calculate_status(d), parse_mode=ParseMode.MARKDOWN)
-
 @dp.message(Command("remove"))
 async def cmd_remove(message: Message):
-    remove_target_date(TARGET_CHAT_ID)
+    await remove_target_date(TARGET_CHAT_ID)  # ← await добавлен
     await message.answer("🗑️ Дата удалена")
 
 # 🔹 Запуск
 async def main():
-    init_db()
+    await init_db()  # ← await добавлен
     bot = Bot(token=BOT_TOKEN)
     
-    # Проверка подключения
     try:
         me = await bot.get_me()
         logging.info(f"✓ Бот @{me.username} подключён")
@@ -177,11 +175,9 @@ async def main():
         logging.error(f"✗ Не удалось подключиться: {e}")
         return
     
-    # Запускаем задачи
     asyncio.create_task(start_scheduler(bot))
     asyncio.create_task(init_web_app())
     
-    # Polling с авто-переподключением
     while True:
         try:
             logging.info("Запуск polling...")
