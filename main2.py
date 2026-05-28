@@ -136,8 +136,8 @@ async def cmd_start(message: Message):
     )
 
 @dp.message(Command("set_date"))
-async def cmd_set_date(message: Message):
-    args = message.text.split()
+async def cmd_set_date(message: Message):  # ← ОБЯЗАТЕЛЬНО async def
+    args = message.text.split()  # ← Теперь message.text это строка
     if len(args) != 2:
         return await message.answer("❌ Формат: `/set_date DD-MM`")
     
