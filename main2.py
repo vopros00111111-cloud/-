@@ -8,13 +8,14 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.enums import ParseMode
 from aiohttp import web  # Для health-check на Render
+import asyncpg  # Добавь к другим импортам
 
 # ================= НАСТРОЙКИ =================
-BOT_TOKEN = os.environ.get("BOT_TOKEN")  # Токен из переменных окружения Render
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 TARGET_CHAT_ID = int(os.environ.get("CHAT_ID", "-1001234567890"))
 REPORT_HOUR = int(os.environ.get("REPORT_HOUR", "10"))
-DB_FILE = "countdown_bot.db"
-PORT = int(os.environ.get("PORT", 8080))  # Порт для Render
+DATABASE_URL = os.environ.get("DATABASE_URL")  # Добавь эту строку
+PORT = int(os.environ.get("PORT", 8080))
 # =============================================
 
 logging.basicConfig(
@@ -24,39 +25,39 @@ logging.basicConfig(
 )
 
 # 🔹 БД
-def init_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS settings (
-            chat_id INTEGER PRIMARY KEY,
-            target_date TEXT NOT NULL
+# 🔹 Пул подключений к БД
+db_pool = None
+async def main():
+    await init_db()  # ← ДОБАВЬ await
+    bot = Bot(token=BOT_TOKEN)
+    # ... остальной код без изменений ...
+async def init_db():
+    global db_pool
+    db_pool = await asyncpg.create_pool(DATABASE_URL)
+    async with db_pool.acquire() as conn:
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS countdown_settings (
+                chat_id BIGINT PRIMARY KEY,
+                target_date TEXT NOT NULL
+            )
+        ''')
+    logging.info("✅ PostgreSQL подключена")
+
+async def get_target_date(chat_id: int):
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT target_date FROM countdown_settings WHERE chat_id=$1", chat_id)
+        return row['target_date'] if row else None
+
+async def set_target_date(chat_id: int, date_str: str):
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO countdown_settings (chat_id, target_date) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET target_date=$2",
+            chat_id, date_str
         )
-    ''')
-    conn.commit()
-    conn.close()
 
-def get_target_date(chat_id: int):
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("SELECT target_date FROM settings WHERE chat_id=?", (chat_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else None
-
-def set_target_date(chat_id: int, date_str: str):
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO settings (chat_id, target_date) VALUES (?, ?)", (chat_id, date_str))
-    conn.commit()
-    conn.close()
-
-def remove_target_date(chat_id: int):
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM settings WHERE chat_id=?", (chat_id,))
-    conn.commit()
-    conn.close()
+async def remove_target_date(chat_id: int):
+    async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM countdown_settings WHERE chat_id=$1", chat_id)
 
 # 🔹 Логика отсчёта
 def calculate_status(date_dm: str) -> str:
